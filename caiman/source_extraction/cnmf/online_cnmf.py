@@ -452,9 +452,11 @@ class OnACID(object):
                 # denoise & deconvolve
                 for i, o in enumerate(self.estimates.OASISinstances):
                     o.fit_next(self.estimates.noisyC[nb_ + i, t])
-                    self.estimates.C_on[nb_ + i, t - o.get_l_of_last_pool() +
+                    if not np.any(np.isnan(o.get_c_of_last_pool())):
+                        self.estimates.C_on[nb_ + i, t - o.get_l_of_last_pool() +
                               1: t + 1] = o.get_c_of_last_pool()
-
+            if np.any(np.isnan(self.estimates.C_on)):
+                logging.error('nan in C from oasis online')
         else:
             if self.is1p:
                 raise NotImplementedError(
@@ -980,8 +982,8 @@ class OnACID(object):
         logging.info('Frame size:' + str(img_norm.shape))
         if self.params.get('online', 'normalize'):
             Y = Y/img_norm[None, :, :]
-        if opts['show_movie']:
-            self.bnd_Y = np.percentile(Y,(0.001,100-0.001))
+        # if opts['show_movie']:
+        self.bnd_Y = np.percentile(Y,(0.001,100-0.001))
         Yr = Y.to_2D().T        # convert data into 2D array
         self.img_min = img_min
         self.img_norm = img_norm
