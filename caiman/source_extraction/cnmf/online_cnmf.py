@@ -886,24 +886,29 @@ class OnACID(object):
         # Downsample if needed
         ds_factor = np.maximum(opts['ds_factor'], 1)
         if ds_factor > 1:
+            logger.info('Caiman online is downsampling')
             Y = Y.resize(1./ds_factor, 1./ds_factor)
         self.estimates.shifts = []  # store motion shifts here
         self.estimates.time_new_comp = []
         if self.params.get('online', 'motion_correct'):
-            mc = caiman.motion_correction.MotionCorrect(Y, dview=self.dview, **self.params.get_group('motion'))
-            mc.motion_correct(save_movie=True)
-            fname_new = caiman.save_memmap(mc.mmap_file, base_name='memmap_', order='C', dview=self.dview)
-            Y = caiman.load(fname_new, is3D=self.params.get('motion', 'is3D'))
-            if self.params.get('motion', 'pw_rigid'):
-                if self.params.get('motion', 'is3D'):
-                    self.estimates.shifts.extend(list(map(tuple, np.transpose([x, y, z])))
-                        for (x, y, z) in zip(mc.x_shifts_els, mc.y_shifts_els, mc.z_shifts_els))
-                else:
-                    self.estimates.shifts.extend(list(map(tuple, np.transpose([x, y])))
-                        for (x, y) in zip(mc.x_shifts_els, mc.y_shifts_els))
-            else:
-                self.estimates.shifts.extend(mc.shifts_rig)
-            self.min_mov = mc.min_mov
+            # mc = caiman.motion_correction.MotionCorrect(Y, dview=self.dview, **self.params.get_group('motion'))
+            # mc.motion_correct(save_movie=True)
+            # fname_new = caiman.save_memmap(mc.mmap_file, base_name='memmap_', order='C', dview=self.dview)
+            # Y = caiman.load(fname_new, is3D=self.params.get('motion', 'is3D'))
+            # if self.params.get('motion', 'pw_rigid'):
+            #     if self.params.get('motion', 'is3D'):
+            #         self.estimates.shifts.extend(list(map(tuple, np.transpose([x, y, z])))
+            #             for (x, y, z) in zip(mc.x_shifts_els, mc.y_shifts_els, mc.z_shifts_els))
+            #     else:
+            #         self.estimates.shifts.extend(list(map(tuple, np.transpose([x, y])))
+            #             for (x, y) in zip(mc.x_shifts_els, mc.y_shifts_els))
+            # else:
+            #     self.estimates.shifts.extend(mc.shifts_rig)
+            # self.min_mov = mc.min_mov
+            max_shifts_online = self.params.get('online', 'max_shifts_online')
+            mc = Y.motion_correct(max_shifts_online, max_shifts_online)
+            Y = mc[0].astype(np.float32)
+            self.estimates.shifts.extend(mc[1])
         img_min = Y.min()
 
         if self.params.get('online', 'normalize'):
@@ -913,8 +918,8 @@ class OnACID(object):
         logger.info(f'Frame size: {img_norm.shape}')
         if self.params.get('online', 'normalize'):
             Y = Y/img_norm[None, :, :]
-        if opts['show_movie']:
-            self.bnd_Y = np.percentile(Y,(0.001,100-0.001))
+        # if opts['show_movie']:
+        self.bnd_Y = np.percentile(Y,(0.001,100-0.001))
         Yr = Y.to_2D().T        # convert data into 2D array
         self.img_min = img_min
         self.img_norm = img_norm
