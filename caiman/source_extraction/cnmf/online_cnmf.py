@@ -891,8 +891,8 @@ class OnACID(object):
         self.estimates.shifts = []  # store motion shifts here
         self.estimates.time_new_comp = []
         if self.params.get('online', 'motion_correct'):
-            # mc = caiman.motion_correction.MotionCorrect(Y, dview=self.dview, **self.params.get_group('motion'))
-            # mc.motion_correct(save_movie=True)
+            mc = caiman.motion_correction.MotionCorrect(Y, dview=self.dview, **self.params.get_group('motion'))
+            mc.motion_correct(save_movie=True)
             # fname_new = caiman.save_memmap(mc.mmap_file, base_name='memmap_', order='C', dview=self.dview)
             # Y = caiman.load(fname_new, is3D=self.params.get('motion', 'is3D'))
             # if self.params.get('motion', 'pw_rigid'):
@@ -904,7 +904,7 @@ class OnACID(object):
             #             for (x, y) in zip(mc.x_shifts_els, mc.y_shifts_els))
             # else:
             #     self.estimates.shifts.extend(mc.shifts_rig)
-            # self.min_mov = mc.min_mov
+            self.min_mov = mc.min_mov
             max_shifts_online = self.params.get('online', 'max_shifts_online')
             mc = Y.motion_correct(max_shifts_online, max_shifts_online)
             Y = mc[0].astype(np.float32)
