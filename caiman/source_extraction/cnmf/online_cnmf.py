@@ -592,8 +592,13 @@ class OnACID(object):
                     self.time_neuron_added.append((_ct - nb_, t))
                     if self.params.get('preprocess', 'p'):
                         # N.B. OASISinstances are already updated within update_num_components
-                        self.estimates.C_on[_ct, t - mbs + 1: t +
-                                  1] = self.estimates.OASISinstances[_ct - nb_].get_c(mbs)
+                        #NOTE: need to check to for the presence of NaNs and if yes, use noisyC instead of OASISinstances
+                        if np.isnan(mbs).any():
+                            self.estimates.C_on[_ct, t - mbs + 1: t + 1] = np.maximum(
+                            0, self.estimates.noisyC[_ct, t - mbs + 1: t + 1])
+                        else:
+                            self.estimates.C_on[_ct, t - mbs + 1: t +
+                                    1] = self.estimates.OASISinstances[_ct - nb_].get_c(mbs)
                     else:
                         self.estimates.C_on[_ct, t - mbs + 1: t + 1] = np.maximum(
                             0, self.estimates.noisyC[_ct, t - mbs + 1: t + 1])
