@@ -592,13 +592,8 @@ class OnACID(object):
                     self.time_neuron_added.append((_ct - nb_, t))
                     if self.params.get('preprocess', 'p'):
                         # N.B. OASISinstances are already updated within update_num_components
-                        #NOTE: need to check to for the presence of NaNs and if yes, use noisyC instead of OASISinstances
-                        if np.isnan(mbs).any():
-                            self.estimates.C_on[_ct, t - mbs + 1: t + 1] = np.maximum(
-                            0, self.estimates.noisyC[_ct, t - mbs + 1: t + 1])
-                        else:
-                            self.estimates.C_on[_ct, t - mbs + 1: t +
-                                    1] = self.estimates.OASISinstances[_ct - nb_].get_c(mbs)
+                        self.estimates.C_on[_ct, t - mbs + 1: t +
+                                  1] = self.estimates.OASISinstances[_ct - nb_].get_c(mbs)
                     else:
                         self.estimates.C_on[_ct, t - mbs + 1: t + 1] = np.maximum(
                             0, self.estimates.noisyC[_ct, t - mbs + 1: t + 1])
@@ -895,26 +890,44 @@ class OnACID(object):
             Y = Y.resize(1./ds_factor, 1./ds_factor)
         self.estimates.shifts = []  # store motion shifts here
         self.estimates.time_new_comp = []
+        # if self.params.get('online', 'motion_correct'):
+        #     mc = caiman.motion_correction.MotionCorrect(Y, dview=self.dview, **self.params.get_group('motion'))
+        #     mc.motion_correct(save_movie=True)
+        #     # fname_new = caiman.save_memmap(mc.mmap_file, base_name='memmap_', order='C', dview=self.dview)
+        #     # Y = caiman.load(fname_new, is3D=self.params.get('motion', 'is3D'))
+        #     # if self.params.get('motion', 'pw_rigid'):
+        #     #     if self.params.get('motion', 'is3D'):
+        #     #         self.estimates.shifts.extend(list(map(tuple, np.transpose([x, y, z])))
+        #     #             for (x, y, z) in zip(mc.x_shifts_els, mc.y_shifts_els, mc.z_shifts_els))
+        #     #     else:
+        #     #         self.estimates.shifts.extend(list(map(tuple, np.transpose([x, y])))
+        #     #             for (x, y) in zip(mc.x_shifts_els, mc.y_shifts_els))
+        #     # else:
+        #     #     self.estimates.shifts.extend(mc.shifts_rig)
+        #     self.min_mov = mc.min_mov
+        #     max_shifts_online = self.params.get('online', 'max_shifts_online')
+        #     mc = Y.motion_correct(max_shifts_online, max_shifts_online)
+        #     Y = mc[0].astype(np.float32)
+        #     self.estimates.shifts.extend(mc[1])
+        # img_min = Y.min()
+
         if self.params.get('online', 'motion_correct'):
             mc = caiman.motion_correction.MotionCorrect(Y, dview=self.dview, **self.params.get_group('motion'))
             mc.motion_correct(save_movie=True)
-            # fname_new = caiman.save_memmap(mc.mmap_file, base_name='memmap_', order='C', dview=self.dview)
-            # Y = caiman.load(fname_new, is3D=self.params.get('motion', 'is3D'))
-            # if self.params.get('motion', 'pw_rigid'):
-            #     if self.params.get('motion', 'is3D'):
-            #         self.estimates.shifts.extend(list(map(tuple, np.transpose([x, y, z])))
-            #             for (x, y, z) in zip(mc.x_shifts_els, mc.y_shifts_els, mc.z_shifts_els))
-            #     else:
-            #         self.estimates.shifts.extend(list(map(tuple, np.transpose([x, y])))
-            #             for (x, y) in zip(mc.x_shifts_els, mc.y_shifts_els))
-            # else:
-            #     self.estimates.shifts.extend(mc.shifts_rig)
+            fname_new = caiman.save_memmap(mc.mmap_file, base_name='memmap_', order='C', dview=self.dview)
+            Y = caiman.load(fname_new, is3D=self.params.get('motion', 'is3D'))
+            if self.params.get('motion', 'pw_rigid'):
+                if self.params.get('motion', 'is3D'):
+                    self.estimates.shifts.extend(list(map(tuple, np.transpose([x, y, z])))
+                        for (x, y, z) in zip(mc.x_shifts_els, mc.y_shifts_els, mc.z_shifts_els))
+                else:
+                    self.estimates.shifts.extend(list(map(tuple, np.transpose([x, y])))
+                        for (x, y) in zip(mc.x_shifts_els, mc.y_shifts_els))
+            else:
+                self.estimates.shifts.extend(mc.shifts_rig)
             self.min_mov = mc.min_mov
-            max_shifts_online = self.params.get('online', 'max_shifts_online')
-            mc = Y.motion_correct(max_shifts_online, max_shifts_online)
-            Y = mc[0].astype(np.float32)
-            self.estimates.shifts.extend(mc[1])
         img_min = Y.min()
+
 
         if self.params.get('online', 'normalize'):
             Y = Y - img_min
@@ -2152,7 +2165,7 @@ def update_num_components(t, sv, Ab, Cf, Yres_buf, Y_buf, rho_buf,
     """
     Checks for new components in the residual buffer and incorporates them if they pass the acceptance tests
     """
-
+    logger = logging.getLogger("caiman")
     ind_new = []
     gHalf = np.array(gSiz) // 2
 
@@ -2243,7 +2256,7 @@ def update_num_components(t, sv, Ab, Cf, Yres_buf, Y_buf, rho_buf,
                     (cin_res - bl)[None, :], robust_std=robust_std,
                     N=N_samples_exceptionality)
                 accepted = (fitness_delta < thresh_fitness_delta) or (
-                    fitness_raw < thresh_fitness_raw)
+                    fitness_raw < thresh_fitness_raw) and (np.array([not np.isnan(std_rr)], dtype=bool))
 
         if accepted:
             # print('adding component' + str(N + 1) + ' at timestep ' + str(t))
@@ -2265,6 +2278,8 @@ def update_num_components(t, sv, Ab, Cf, Yres_buf, Y_buf, rho_buf,
                                       g2=0 if np.size(g) == 1 else g[1])
                     for yt in cin_res:
                         oas.fit_next(yt)
+                        if np.isnan(oas.get_c_of_last_pool()).any():
+                            logger.info("There is a nan in oas instance after fit_next()!!!")
 
                 oases.append(oas)
 
