@@ -591,9 +591,15 @@ class OnACID(object):
                 for _ct in range(self.M - num_added, self.M):
                     self.time_neuron_added.append((_ct - nb_, t))
                     if self.params.get('preprocess', 'p'):
-                        # N.B. OASISinstances are already updated within update_num_components
-                        self.estimates.C_on[_ct, t - mbs + 1: t +
-                                  1] = self.estimates.OASISinstances[_ct - nb_].get_c(mbs)
+                        # # N.B. OASISinstances are already updated within update_num_components
+                        # logger.info('checking for nans')
+                        if np.isnan(self.estimates.OASISinstances[_ct - nb_].get_c(mbs).any()):
+                            logger.info('there are all zeros or nan in OASISinstance?')
+                            self.estimates.C_on[_ct, t - mbs + 1: t + 1] = np.maximum(
+                            0, self.estimates.noisyC[_ct, t - mbs + 1: t + 1])
+                        else:
+                            self.estimates.C_on[_ct, t - mbs + 1: t +
+                                    1] = self.estimates.OASISinstances[_ct - nb_].get_c(mbs)
                     else:
                         self.estimates.C_on[_ct, t - mbs + 1: t + 1] = np.maximum(
                             0, self.estimates.noisyC[_ct, t - mbs + 1: t + 1])
@@ -2255,8 +2261,8 @@ def update_num_components(t, sv, Ab, Cf, Yres_buf, Y_buf, rho_buf,
                 fitness_raw, erfc_raw, std_rr, _ = compute_event_exceptionality(
                     (cin_res - bl)[None, :], robust_std=robust_std,
                     N=N_samples_exceptionality)
-                accepted = (fitness_delta < thresh_fitness_delta) or (
-                    fitness_raw < thresh_fitness_raw) and (np.array([not np.isnan(std_rr)], dtype=bool))
+                accepted = ((fitness_delta < thresh_fitness_delta) or (
+                    fitness_raw < thresh_fitness_raw)) and (np.array([not np.isnan(std_rr)], dtype=bool))
 
         if accepted:
             # print('adding component' + str(N + 1) + ' at timestep ' + str(t))
