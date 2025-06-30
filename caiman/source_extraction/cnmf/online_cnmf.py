@@ -146,7 +146,7 @@ class OnACID(object):
             self.params.set('online', {'expected_comps': self.N + 
                 self.params.get('online', 'max_num_added') + 200})
         expected_comps = self.params.get('online', 'expected_comps')
-
+        # logger.info("what is max_num_added:{}".format(self.params.get('online', 'max_num_added')))
         if Yr.shape[-1] != self.params.get('online', 'init_batch'):
             raise Exception(
                 'The movie size used for initialization does not match with the minibatch size')
@@ -402,7 +402,7 @@ class OnACID(object):
         self.t_detect:list = []
         self.t_motion:list = []
         self.t_stat:list = []
-
+        self.reach_print_flag = True  # added a print flag?
         return self
 
     @profile
@@ -489,6 +489,11 @@ class OnACID(object):
         
         t_new = time()
         num_added = 0
+        # if we detect more than the expected amount of components, we stop updating
+        if self.N >= expected_comps and self.reach_print_flag:
+            logger.warning(f'{self.N} neurons; Reached the hard gap of {expected_comps} neurons; no more components will be added')
+            self.params.set('online', {'update_num_comps': False})
+            self.reach_print_flag = False
         if self.params.get('online', 'update_num_comps'):
 
             if self.params.get('online', 'use_corr_img'):
@@ -569,20 +574,20 @@ class OnACID(object):
             if num_added > 0:
                 self.N += num_added
                 self.M += num_added
-                if self.N + self.params.get('online', 'max_num_added') > expected_comps:
-                    expected_comps += 200
-                    self.params.set('online', {'expected_comps': expected_comps})
-                    self.estimates.CY.resize(
-                        [expected_comps + nb_, self.estimates.CY.shape[-1]])
-                    self.estimates.C_on.resize(
-                        [expected_comps + nb_, self.estimates.C_on.shape[-1]], refcheck=False)
-                    self.estimates.noisyC.resize(
-                        [expected_comps + nb_, self.estimates.C_on.shape[-1]])
-                    if self.params.get('online', 'use_dense'):  # resize won't work due to contingency issue
-                        self.estimates.Ab_dense = np.zeros((self.estimates.CY.shape[-1], expected_comps + nb_),
-                                                 dtype=np.float32)
-                        self.estimates.Ab_dense[:, :Ab_.shape[1]] = Ab_.toarray()
-                    logger.info(f'Increasing number of expected components to: {expected_comps}')
+                # if self.N + self.params.get('online', 'max_num_added') > expected_comps:
+                #     expected_comps += 200
+                #     self.params.set('online', {'expected_comps': expected_comps})
+                #     self.estimates.CY.resize(
+                #         [expected_comps + nb_, self.estimates.CY.shape[-1]])
+                #     self.estimates.C_on.resize(
+                #         [expected_comps + nb_, self.estimates.C_on.shape[-1]], refcheck=False)
+                #     self.estimates.noisyC.resize(
+                #         [expected_comps + nb_, self.estimates.C_on.shape[-1]])
+                #     if self.params.get('online', 'use_dense'):  # resize won't work due to contingency issue
+                #         self.estimates.Ab_dense = np.zeros((self.estimates.CY.shape[-1], expected_comps + nb_),
+                #                                  dtype=np.float32)
+                #         self.estimates.Ab_dense[:, :Ab_.shape[1]] = Ab_.toarray()
+                #     logger.info(f'Increasing number of expected components to: {expected_comps}')
                 self.update_counter.resize(self.N, refcheck=False)
 
                 self.estimates.noisyC[self.M - num_added:self.M, t - mbs +
