@@ -490,10 +490,17 @@ class OnACID(object):
         t_new = time()
         num_added = 0
         # if we detect more than the expected amount of components, we stop updating
+        max_num_added = self.params.get('online', 'max_num_added')
         if self.N >= expected_comps and self.reach_print_flag:
             logger.warning(f'{self.N} neurons; Reached the hard gap of {expected_comps} neurons; no more components will be added')
             self.params.set('online', {'update_num_comps': False})
+            self.params.set('online', {'max_num_added': 0}) # Force batch size to 0
             self.reach_print_flag = False
+
+        elif (self.N + max_num_added) > expected_comps:  # or if next batch is over the expected amount of components
+            remaining_space = max(0, expected_comps - self.N)
+            logger.info(f"Throttling: {self.N} neurons found. Setting max_num_added to {remaining_space}")
+            self.params.set('online', {'max_num_added': remaining_space})
         if self.params.get('online', 'update_num_comps'):
 
             if self.params.get('online', 'use_corr_img'):
@@ -2209,6 +2216,10 @@ def update_num_components(t, sv, Ab, Cf, Yres_buf, Y_buf, rho_buf,
     num_added = 0  # len(inds)
     cnt = 0
     for ind, ain, cin, cin_res in zip(inds, Ains, Cins, Cins_res):
+        # ensuring that the number of added components does not exceed max_num_added,
+        if num_added >= max_num_added:
+            logger.info(f"Reached max_num_added limit ({max_num_added}) for this frame. Stopping.")
+            break
         cnt += 1
         ij = np.unravel_index(ind, dims)
 
